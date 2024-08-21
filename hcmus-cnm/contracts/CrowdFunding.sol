@@ -63,15 +63,8 @@ contract CrowdFunding {
         require(campaign.owner != address(0), "Campaign not found");
 
         require(
-            campaign.isWithdrawable || campaign.deadline < block.timestamp,
-            string(
-                abi.encodePacked(
-                    "Campaign can't be donated anymore ",
-                    string(abi.encodePacked(campaign.deadline)),
-                    " ",
-                    string(abi.encodePacked(block.timestamp))
-                )
-            )
+            campaign.isWithdrawable && campaign.deadline > block.timestamp,
+            "Campaign can't be donated anymore "
         );
 
         (bool sent, ) = payable(campaign.owner).call{value: amount}("");
@@ -151,7 +144,7 @@ contract CrowdFunding {
         require(hasAddress, "Contributor address is invalid");
 
         require(
-            campaign.donations[contributorIndex] < msg.value,
+            campaign.donations[contributorIndex] >= msg.value,
             "Donation amount is invalid"
         );
 

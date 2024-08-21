@@ -13,7 +13,7 @@ const StateContext = createContext();
 
 export const StateContextProvider = ({ children }) => {
   const { contract } = useContract(
-    "0x49a7A904068966F0518020E92679a384C26f3AbD"
+    "0x5d94Ab110817338a6Db766E0cC72Cc1bA42aDB64"
   );
   const { mutateAsync: createCampaign } = useContractWrite(
     contract,
@@ -80,6 +80,14 @@ export const StateContextProvider = ({ children }) => {
     return data;
   };
 
+  const withdraw = async (pId, amount) => {
+    const data = await contract.call("withdrawDonation", [pId], {
+      value: ethers.utils.parseEther(amount),
+    });
+
+    return data;
+  };
+
   const getDonations = async (pId) => {
     const donations = await contract.call("getDonators", [pId]);
     const numberOfDonations = donations[0].length;
@@ -107,6 +115,7 @@ export const StateContextProvider = ({ children }) => {
         getCampaigns,
         getUserCampaigns,
         donate,
+        withdraw,
         getDonations,
       }}
     >

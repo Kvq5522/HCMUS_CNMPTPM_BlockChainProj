@@ -10,18 +10,23 @@ import { thirdweb } from "../assets";
 const CampaignDetails = () => {
   const { state } = useLocation();
   const navigate = useNavigate();
-  const { donate, getDonations, contract, address } = useStateContext();
+  const { donate, getDonations, contract, address, withdraw } =
+    useStateContext();
 
   const [isLoading, setIsLoading] = useState(false);
   const [amount, setAmount] = useState("");
   const [donators, setDonators] = useState([]);
+  const [isDonator, setIsDonator] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState(0);
 
   const remainingDays = daysLeft(state.deadline);
 
   const fetchDonators = async () => {
     const data = await getDonations(state.pId);
+    console.log(data);
 
     setDonators(data);
+    setIsDonator(data.find((donator) => donator.donator === address));
   };
 
   useEffect(() => {
@@ -138,6 +143,25 @@ const CampaignDetails = () => {
             </div>
           </div>
         </div>
+
+        {isDonator && (
+          <>
+            <input
+              type="number"
+              placeholder="Refund now"
+              onChange={(e) => setWithdrawAmount(e.target.value)}
+            />
+            <button
+              onClick={async () => {
+                setIsLoading(true);
+                await withdraw(state.pId, withdrawAmount);
+                setIsLoading(false);
+              }}
+            >
+              Refund
+            </button>
+          </>
+        )}
 
         {state.owner != address && (
           <div className="flex-1">

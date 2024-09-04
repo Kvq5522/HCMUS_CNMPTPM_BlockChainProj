@@ -10,10 +10,11 @@ import { thirdweb } from "../assets";
 const CampaignDetails = () => {
   const { state } = useLocation();
   const navigate = useNavigate();
-  const { donate, getDonations, contract, address, withdraw } =
+  const { donate, getDonations, contract, address, withdraw, getCampaignById } =
     useStateContext();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState("Loading campaign details...");
   const [amount, setAmount] = useState("");
   const [donators, setDonators] = useState([]);
   const [isDonator, setIsDonator] = useState(false);
@@ -29,22 +30,30 @@ const CampaignDetails = () => {
     setIsDonator(data.find((donator) => donator.donator === address));
   };
 
-  useEffect(() => {
-    if (contract) fetchDonators();
-  }, [contract, address]);
-
   const handleDonate = async () => {
     setIsLoading(true);
 
+    setMessage("Handling donation...");
     await donate(state.pId, amount);
 
     navigate("/");
     setIsLoading(false);
   };
 
+  useEffect(() => {
+    (async () => {
+      setMessage("Loading campaign details...");
+      const data = await getCampaignById(state.pId);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (contract) fetchDonators();
+  }, [contract, address]);
+
   return (
     <div>
-      {isLoading && <Loader />}
+      {isLoading && <Loader message={message} />}
 
       <div className="w-full flex md:flex-row flex-col mt-10 gap-[30px]">
         <div className="flex-1 flex-col">

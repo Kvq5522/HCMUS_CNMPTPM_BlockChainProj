@@ -13,7 +13,7 @@ const StateContext = createContext();
 
 export const StateContextProvider = ({ children }) => {
   const { contract } = useContract(
-    "0x5d94Ab110817338a6Db766E0cC72Cc1bA42aDB64"
+    "0x254510fc5b56c9EFEcb7203f4Cb320F57c971B63"
   );
   const { mutateAsync: createCampaign } = useContractWrite(
     contract,
@@ -32,8 +32,10 @@ export const StateContextProvider = ({ children }) => {
           form.title, // title
           form.description, // description
           form.target,
-          new Date(form.deadline).getTime(), // deadline,
+          new Date(form.deadline).getTime(), // deadline,\
+          "Technology",
           form.image,
+          10,
         ],
       });
 
@@ -60,6 +62,23 @@ export const StateContextProvider = ({ children }) => {
     }));
 
     return parsedCampaings;
+  };
+
+  const getCampaignById = async (pId) => {
+    const campaign = await contract.call("getCampaignById", [pId]);
+
+    return {
+      owner: campaign.owner,
+      title: campaign.title,
+      description: campaign.description,
+      target: ethers.utils.formatEther(campaign.target.toString()),
+      deadline: campaign.deadline.toNumber(),
+      amountCollected: ethers.utils.formatEther(
+        campaign.amountCollected.toString()
+      ),
+      image: campaign.image,
+      pId,
+    };
   };
 
   const getUserCampaigns = async () => {
@@ -113,6 +132,7 @@ export const StateContextProvider = ({ children }) => {
         disconnect,
         createCampaign: publishCampaign,
         getCampaigns,
+        getCampaignById,
         getUserCampaigns,
         donate,
         withdraw,

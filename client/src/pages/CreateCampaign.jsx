@@ -18,6 +18,8 @@ const CreateCampaign = () => {
     target: "",
     deadline: "",
     image: "",
+    tokenAmount: "",
+    category: "",
   });
 
   const handleFormFieldChange = (fieldName, e) => {
@@ -25,23 +27,55 @@ const CreateCampaign = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    try {
+      e.preventDefault();
 
-    checkIfImage(form.image, async (exists) => {
-      if (!exists) {
-        alert("Provide valid image URL");
-        setForm({ ...form, image: "" });
+      if (
+        !Number.parseFloat(form.target) ||
+        !Number.parseFloat(form.tokenAmount)
+      ) {
+        alert("Please enter valid amounts");
+        return;
       }
 
-      setIsLoading(true);
+      if (!form.name) {
+        alert("Please enter your name");
+        return;
+      }
 
-      await createCampaign({
-        ...form,
-        target: ethers.utils.parseUnits(form.target, 18),
+      if (!form.title) {
+        alert("Please enter a campaign title");
+        return;
+      }
+
+      if (!form.description) {
+        alert("Please enter a campaign description");
+        return;
+      }
+
+      if (!form.deadline) {
+        alert("Please enter a deadline");
+        return;
+      }
+
+      checkIfImage(form.image, async (exists) => {
+        if (!exists) {
+          alert("Provide valid image URL");
+          setForm({ ...form, image: "" });
+        }
+
+        setIsLoading(true);
+
+        await createCampaign({
+          ...form,
+          target: ethers.utils.parseUnits(form.target, 18),
+        });
+        setIsLoading(false);
+        navigate("/");
       });
-      setIsLoading(false);
-      navigate("/");
-    });
+    } catch (error) {
+      alert(error);
+    }
   };
 
   return (
@@ -110,6 +144,24 @@ const CreateCampaign = () => {
             inputType="date"
             value={form.deadline}
             handleChange={(e) => handleFormFieldChange("deadline", e)}
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-[40px]">
+          <FormField
+            labelName="Initial token amount *"
+            placeholder="10000"
+            inputType="text"
+            value={form.tokenAmount}
+            handleChange={(e) => handleFormFieldChange("tokenAmount", e)}
+          />
+
+          <FormField
+            labelName="Category *"
+            placeholder="Technology, etc..."
+            inputType="text"
+            value={form.category}
+            handleChange={(e) => handleFormFieldChange("category", e)}
           />
         </div>
 

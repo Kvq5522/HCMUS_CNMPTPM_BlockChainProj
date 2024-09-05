@@ -13,7 +13,7 @@ const StateContext = createContext();
 
 export const StateContextProvider = ({ children }) => {
   const { contract } = useContract(
-    "0x254510fc5b56c9EFEcb7203f4Cb320F57c971B63"
+    "0x818215aEeF76D52C6D6F1DAf9eF81a846267d57E"
   );
   const { mutateAsync: createCampaign } = useContractWrite(
     contract,
@@ -33,9 +33,9 @@ export const StateContextProvider = ({ children }) => {
           form.description, // description
           form.target,
           new Date(form.deadline).getTime(), // deadline,\
-          "Technology",
+          form.category ?? "",
           form.image,
-          10,
+          form.tokenAmount ?? 10000,
         ],
       });
 
@@ -53,11 +53,22 @@ export const StateContextProvider = ({ children }) => {
       title: campaign.title,
       description: campaign.description,
       target: ethers.utils.formatEther(campaign.target.toString()),
+      category: campaign.category,
       deadline: campaign.deadline.toNumber(),
       amountCollected: ethers.utils.formatEther(
         campaign.amountCollected.toString()
       ),
+      hasWithdrawed: campaign.hasWithdrawed,
+      hasEnded: campaign.hasEnded,
+      isWithdrawable: campaign.isWithdrawable,
+      isSuccessful: campaign.isSuccessful,
+      tokensSold: ethers.utils.formatEther(campaign.tokensSold.toString()),
+      tokensForSale: ethers.utils.formatEther(
+        campaign.tokensForSale.toString()
+      ),
+      tokenPrice: ethers.utils.formatEther(campaign.tokenPrice.toString()),
       image: campaign.image,
+      donators: campaign.contributors,
       pId: i,
     }));
 
@@ -72,11 +83,22 @@ export const StateContextProvider = ({ children }) => {
       title: campaign.title,
       description: campaign.description,
       target: ethers.utils.formatEther(campaign.target.toString()),
+      category: campaign.category,
       deadline: campaign.deadline.toNumber(),
       amountCollected: ethers.utils.formatEther(
         campaign.amountCollected.toString()
       ),
+      hasWithdrawed: campaign.hasWithdrawed,
+      hasEnded: campaign.hasEnded,
+      isWithdrawable: campaign.isWithdrawable,
+      isSuccessful: campaign.isSuccessful,
+      tokensSold: ethers.utils.formatEther(campaign.tokensSold.toString()),
+      tokensForSale: ethers.utils.formatEther(
+        campaign.tokensForSale.toString()
+      ),
+      tokenPrice: ethers.utils.formatEther(campaign.tokenPrice.toString()),
       image: campaign.image,
+      donators: campaign.contributors,
       pId,
     };
   };
@@ -123,6 +145,12 @@ export const StateContextProvider = ({ children }) => {
     return parsedDonations;
   };
 
+  const endCampaign = async (pId) => {
+    const data = await contract.call("endCampaign", [pId]);
+
+    return data;
+  };
+
   return (
     <StateContext.Provider
       value={{
@@ -130,6 +158,7 @@ export const StateContextProvider = ({ children }) => {
         contract,
         connect,
         disconnect,
+        endCampaign,
         createCampaign: publishCampaign,
         getCampaigns,
         getCampaignById,

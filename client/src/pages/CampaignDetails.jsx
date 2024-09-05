@@ -10,8 +10,14 @@ import { thirdweb } from "../assets";
 const CampaignDetails = () => {
   const { state } = useLocation();
   const navigate = useNavigate();
-  const { donate, getDonations, contract, address, withdraw, getCampaignById } =
-    useStateContext();
+  const {
+    donate,
+    getDonations,
+    contract,
+    address,
+    getCampaignById,
+    endCampaign,
+  } = useStateContext();
 
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("Loading campaign details...");
@@ -20,30 +26,75 @@ const CampaignDetails = () => {
   const [isDonator, setIsDonator] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState(0);
 
+  console.log(state);
+
   const remainingDays = daysLeft(state.deadline);
 
   const fetchDonators = async () => {
     const data = await getDonations(state.pId);
-    console.log(data);
 
     setDonators(data);
     setIsDonator(data.find((donator) => donator.donator === address));
   };
 
   const handleDonate = async () => {
-    setIsLoading(true);
+    try {
+      setIsLoading(true);
 
-    setMessage("Handling donation...");
-    await donate(state.pId, amount);
+      if (
+        Number.parseInt(amount) >
+          Number.parseInt(state.tokensForSale) -
+            Number.parseInt(state.tokensSold) ||
+        Number.parseInt(amount) < 0
+      ) {
+        alert("Invalid fund amount. Please enter a valid fund amount.");
+        return;
+      }
 
-    navigate("/");
-    setIsLoading(false);
+      setMessage("Handling donation...");
+      await donate(state.pId, amount);
+
+      navigate("/");
+      setIsLoading(false);
+    } catch (error) {
+      alert("Failed to handle donation. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const handleEndCampaign = async () => {
+    try {
+      setIsLoading(true);
+      setMessage("Ending campaign...");
+
+      if (state.hasWithdrawed || !state.hasEnded) {
+        alert("Campaign has already ended or withdrawn.");
+        return;
+      }
+
+      const data = await endCampaign(state.pId);
+    } catch (error) {
+      console.log(error);
+      alert("Failed to end campaign. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleWithdrawCampaign = async () => {};
 
   useEffect(() => {
     (async () => {
-      setMessage("Loading campaign details...");
-      const data = await getCampaignById(state.pId);
+      try {
+        setMessage("Loading campaign details...");
+        const data = await getCampaignById(state.pId);
+      } catch (error) {
+        console.log(error);
+        alert("Failed to load campaign details. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
     })();
   }, []);
 
@@ -77,7 +128,10 @@ const CampaignDetails = () => {
         </div>
 
         <div className="flex md:w-[150px] w-full flex-wrap justify-between gap-[30px]">
-          <CountBox title="Days Left" value={remainingDays} />
+          <CountBox
+            title="Days Left"
+            value={state.hasEnded ? 0 : remainingDays}
+          />
           <CountBox
             title={`Raised of ${state.target}`}
             value={state.amountCollected}
@@ -89,7 +143,7 @@ const CampaignDetails = () => {
       <div className="mt-[60px] flex lg:flex-row flex-col gap-5">
         <div className="flex-[2] flex flex-col gap-[40px]">
           <div>
-            <h4 className="font-epilogue font-semibold text-[18px] text-white uppercase">
+            <h4 className="font-epilogue font-semibold text-[18px]  uppercase">
               Creator
             </h4>
 
@@ -102,18 +156,39 @@ const CampaignDetails = () => {
                 />
               </div>
               <div>
-                <h4 className="font-epilogue font-semibold text-[14px] text-white break-all">
+                <h4 className="font-epilogue font-semibold text-[14px]  break-all">
                   {state.owner}
                 </h4>
-                <p className="mt-[4px] font-epilogue font-normal text-[12px] text-[#808191]">
-                  10 Campaigns
-                </p>
               </div>
             </div>
           </div>
 
           <div>
-            <h4 className="font-epilogue font-semibold text-[18px] text-white uppercase">
+            <h4 className="font-epilogue font-semibold text-[18px]  uppercase">
+              Status
+            </h4>
+
+            <div className="mt-[20px]">
+              <p className="font-epilogue font-normal text-[16px] text-[#808191] leading-[26px] text-justify">
+                {state.hasEnded ? "Ended" : "Active"}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-epilogue font-semibold text-[18px]  uppercase">
+              Category
+            </h4>
+
+            <div className="mt-[20px]">
+              <p className="font-epilogue font-normal text-[16px] text-[#808191] leading-[26px] text-justify">
+                {state.category}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-epilogue font-semibold text-[18px]  uppercase">
               Story
             </h4>
 
@@ -125,11 +200,11 @@ const CampaignDetails = () => {
           </div>
 
           <div>
-            <h4 className="font-epilogue font-semibold text-[18px] text-white uppercase">
+            <h4 className="font-epilogue font-semibold text-[18px]  uppercase">
               Donators
             </h4>
 
-            <div className="mt-[20px] flex flex-col gap-4">
+            <div className="mt-[20px] max-h-[200px] overflow-auto flex flex-col gap-4">
               {donators.length > 0 ? (
                 donators.map((item, index) => (
                   <div
@@ -153,28 +228,22 @@ const CampaignDetails = () => {
           </div>
         </div>
 
-        {isDonator && (
+        {address == state.owner && (
           <>
-            <input
-              type="number"
-              placeholder="Refund now"
-              onChange={(e) => setWithdrawAmount(e.target.value)}
-            />
             <button
-              onClick={async () => {
-                setIsLoading(true);
-                await withdraw(state.pId, withdrawAmount);
-                setIsLoading(false);
-              }}
+              onClick={
+                state.hasEnded ? handleWithdrawCampaign : handleEndCampaign
+              }
+              className="bg-[#8c6dfd] text-white h-[50px] mt-10 p-2 rounded-[10px]  font-epilogue font-semibold text-[18px] leading-[30px] cursor-pointer"
             >
-              Refund
+              {state.hasEnded ? "Withdraw money" : "End Campaign"}
             </button>
           </>
         )}
 
         {state.owner != address && (
           <div className="flex-1">
-            <h4 className="font-epilogue font-semibold text-[18px] text-white uppercase">
+            <h4 className="font-epilogue font-semibold text-[18px] uppercase">
               Fund
             </h4>
 
@@ -182,31 +251,40 @@ const CampaignDetails = () => {
               <p className="font-epilogue fount-medium text-[20px] leading-[30px] text-center text-[#808191]">
                 Fund the campaign
               </p>
-              <div className="mt-[30px]">
+
+              <div className="mt-[1px]">
+                <p className="text-white font-epilogue font-semibold my-2">
+                  Available tokens: {state.tokensForSale - state.tokensSold}
+                </p>
+
+                <p className="text-white font-epilogue font-semibold my-2">
+                  Token price: {state.tokenPrice}
+                </p>
+
                 <input
                   type="number"
-                  placeholder="ETH 0.1"
-                  step="0.01"
-                  className="w-full py-[10px] sm:px-[20px] px-[15px] outline-none border-[1px] border-[#3a3a43] bg-transparent font-epilogue text-white text-[18px] leading-[30px] placeholder:text-[#4b5264] rounded-[10px]"
+                  placeholder="Token 1"
+                  className="w-full py-[10px] sm:px-[20px] px-[15px] text-white outline-none  border-[1px] border-[#3a3a43] bg-transparent font-epilogue  text-[18px] leading-[30px] placeholder:text-[#4b5264] rounded-[10px]"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                 />
 
-                <div className="my-[20px] p-4 bg-[#13131a] rounded-[10px]">
-                  <h4 className="font-epilogue font-semibold text-[14px] leading-[22px] text-white">
-                    Back it because you believe in it.
-                  </h4>
-                  <p className="mt-[20px] font-epilogue font-normal leading-[22px] text-[#808191]">
-                    Support the project for no reward, just because it speaks to
-                    you.
+                {Number.parseInt(amount) > 0 && (
+                  <p className="text-white font-epilogue font-semibold my-2">
+                    You have to pay {amount * state.tokenPrice} ETH to fund
                   </p>
-                </div>
+                )}
 
                 <CustomButton
                   btnType="button"
                   title="Fund Campaign"
-                  styles="w-full bg-[#8c6dfd]"
+                  styles="w-full bg-[#8c6dfd] mt-2"
                   handleClick={handleDonate}
+                  disabled={
+                    new Date(state.deadline) < new Date() ||
+                    state.hasEnded ||
+                    state.tokensForSale - state.tokensSold > 0
+                  }
                 />
               </div>
             </div>

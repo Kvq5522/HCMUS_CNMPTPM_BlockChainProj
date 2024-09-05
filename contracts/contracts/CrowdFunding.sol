@@ -23,6 +23,7 @@ contract CrowdFunding {
         uint256 target;
         uint256 deadline;
         uint256 amountCollected;
+        bool hasEnded;
         string category;
         string image;
         address[] contributors;
@@ -75,17 +76,18 @@ contract CrowdFunding {
         campaign.target = _target;
         campaign.deadline = _deadline;
         campaign.amountCollected = 0;
+        campaign.hasEnded = false;
         campaign.category = _category;
         campaign.image = _image;
         campaign.isSuccessful = false;
         campaign.isWithdrawable = false;
         campaign.hasWithdrawed = false;
-        campaign.tokenPrice = (_target * 1e18) / _tokensForSale;
-        campaign.tokensForSale = _tokensForSale;
+        campaign.tokenPrice = (_target) / (_tokensForSale);
+        campaign.tokensForSale = _tokensForSale * 1e18;
         campaign.tokensSold = 0;
 
         require(
-            token.transfer(campaign.owner, _tokensForSale),
+            token.transfer(campaign.owner, _tokensForSale * 1e18),
             string(
                 abi.encodePacked(
                     "Contract tokens: ",
@@ -111,22 +113,23 @@ contract CrowdFunding {
             "Campaign can't be donated anymore "
         );
 
-        uint256 tokensToBuy = amount / campaign.tokenPrice;
         require(
-            campaign.tokensSold + tokensToBuy <= campaign.tokensForSale,
+            campaign.tokensSold + amount * 1e18 <= campaign.tokensForSale,
             "Not enough tokens left"
         );
 
-        (bool sent, ) = payable(address(this)).call{value: amount}("");
+        (bool sent, ) = payable(campaign.owner).call{
+            value: campaign.tokenPrice * amount
+        }("");
         require(sent, "Fail to donate");
-        require(token.approve(campaign.owner, tokensToBuy), "Can't send token");
+        require(token.approve(campaign.owner, amount), "Can't send token");
         require(
-            token.transferFrom(campaign.owner, msg.sender, tokensToBuy),
+            token.transferFrom(campaign.owner, msg.sender, amount),
             "Token transfer failed"
         );
 
-        campaign.amountCollected += amount;
-        campaign.tokensSold += tokensToBuy;
+        campaign.amountCollected += campaign.tokenPrice * amount;
+        campaign.tokensSold += amount * 1e18;
 
         bool hasAddress = false;
         uint256 contributorIndex = 0;
@@ -141,9 +144,11 @@ contract CrowdFunding {
 
         if (!hasAddress) {
             campaign.contributors.push(msg.sender);
-            campaign.donations.push(amount);
+            campaign.donations.push(campaign.tokenPrice* amount);
         } else {
-            campaign.donations[contributorIndex] += amount;
+            campaign.donations[contributorIndex] +=
+                (campaign.tokenPrice / 1e18) *
+                amount;
         }
     }
 
@@ -179,6 +184,7 @@ contract CrowdFunding {
         bool _isSuccessful = campaign.amountCollected >= campaign.target;
 
         campaign.isWithdrawable = true;
+        campaign.hasEnded = true;
 
         if (_isSuccessful) {
             numberOfSuccessCampaigns++;
@@ -198,11 +204,16 @@ contract CrowdFunding {
                     : campaignPercentage <= 75
                         ? (campaign.donations[i] * 80) / 100
                         : (campaign.donations[i] * 70) / 100;
-            (bool sent, ) = payable(campaign.contributors[i]).call{
-                value: refundValue
-            }("");
+
+            // (bool sent, ) = payable(campaign.contributors[i]).call{
+            //     value: refundValue
+            // }("");
+            (bool sent, ) = (
+                ((campaign.contributors[i]).call{value: refundValue}(""))
+            );
             campaign.amountCollected -= refundValue;
             require(sent, "Refund failed");
+
             token.approve(
                 campaign.contributors[i],
                 campaign.donations[i] / (campaign.tokenPrice)
@@ -227,9 +238,12 @@ contract CrowdFunding {
 
         require(!campaign.hasWithdrawed, "Has withdrawed money already");
 
-        (bool sent, ) = payable(campaign.owner).call{
-            value: campaign.amountCollected
-        }("");
+        // (bool sent, ) = payable(campaign.owner).call{
+        //     value: campaign.amountCollected
+        // }("");
+        (bool sent, ) = campaign.owner.call{value: campaign.amountCollected}(
+            ""
+        );
         require(sent, "Withdraw failed");
         campaign.hasWithdrawed = true;
     }

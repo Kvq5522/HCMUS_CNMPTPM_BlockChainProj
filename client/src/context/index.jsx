@@ -6,36 +6,52 @@ import {
   useMetamask,
   useContractWrite,
   useDisconnect,
+  useSigner,
 } from "@thirdweb-dev/react";
 import { ethers } from "ethers";
+import { TOKEN_ABI } from "../constants/tokenAbi";
 
 const StateContext = createContext();
 
+const contractAddress = "0x9F92322Fd9023755317a2FcAd99BBb49355cfaCf";
+const tokenAddress = "0x335E93300b7e8C0E8527E46F128B4a5D2c354245";
+
 export const StateContextProvider = ({ children }) => {
-  const { contract } = useContract(
-    "0x818215aEeF76D52C6D6F1DAf9eF81a846267d57E"
-  );
+  const { contract } = useContract(contractAddress);
   const { mutateAsync: createCampaign } = useContractWrite(
     contract,
     "createCampaign"
   );
 
   const address = useAddress();
+  const signer = useSigner();
   const connect = useMetamask();
   const disconnect = useDisconnect();
 
   const publishCampaign = async (form) => {
     try {
+      const tokenContract = new ethers.Contract(
+        tokenAddress,
+        TOKEN_ABI,
+        signer
+      );
+      const amountToApprove = ethers.utils.parseUnits(
+        form.tokenAmount.toString(),
+        18
+      );
+      const tx = await tokenContract.approve(contractAddress, amountToApprove);
+      await tx.wait();
+
       const data = await createCampaign({
         args: [
           address, // owner
           form.title, // title
           form.description, // description
           form.target,
-          new Date(form.deadline).getTime(), // deadline,\
+          new Date(form.deadline).getTime(), // deadline
           form.category ?? "",
           form.image,
-          form.tokenAmount ?? 10000,
+          form.tokenAmount ?? "10000",
         ],
       });
 
@@ -76,31 +92,8 @@ export const StateContextProvider = ({ children }) => {
   };
 
   const getCampaignById = async (pId) => {
-    const campaign = await contract.call("getCampaignById", [pId]);
-
-    return {
-      owner: campaign.owner,
-      title: campaign.title,
-      description: campaign.description,
-      target: ethers.utils.formatEther(campaign.target.toString()),
-      category: campaign.category,
-      deadline: campaign.deadline.toNumber(),
-      amountCollected: ethers.utils.formatEther(
-        campaign.amountCollected.toString()
-      ),
-      hasWithdrawed: campaign.hasWithdrawed,
-      hasEnded: campaign.hasEnded,
-      isWithdrawable: campaign.isWithdrawable,
-      isSuccessful: campaign.isSuccessful,
-      tokensSold: ethers.utils.formatEther(campaign.tokensSold.toString()),
-      tokensForSale: ethers.utils.formatEther(
-        campaign.tokensForSale.toString()
-      ),
-      tokenPrice: ethers.utils.formatEther(campaign.tokenPrice.toString()),
-      image: campaign.image,
-      donators: campaign.contributors,
-      pId,
-    };
+    const campaigns = await getCampaigns();
+    return campaigns[Number.parseInt(pId)];
   };
 
   const getUserCampaigns = async () => {
@@ -113,9 +106,15 @@ export const StateContextProvider = ({ children }) => {
     return filteredCampaigns;
   };
 
-  const donate = async (pId, amount) => {
+  const donate = async (pId, amount, tokenAmount) => {
+    const tokenContract = new ethers.Contract(tokenAddress, TOKEN_ABI, signer);
+    const tx = await tokenContract.approve(contractAddress, tokenAmount);
+    await tx.wait();
+
     const data = await contract.call("donateToCampaign", [pId], {
-      value: ethers.utils.parseEther(amount),
+      value: ethers.utils.parseEther(
+        ethers.utils.formatEther(amount.toString())
+      ),
     });
 
     return data;
@@ -125,6 +124,12 @@ export const StateContextProvider = ({ children }) => {
     const data = await contract.call("withdrawDonation", [pId], {
       value: ethers.utils.parseEther(amount),
     });
+
+    return data;
+  };
+
+  const withdrawCampaignMoney = async (pId) => {
+    const data = await contract.call("withdrawCampaignMoney", [pId]);
 
     return data;
   };
@@ -165,6 +170,7 @@ export const StateContextProvider = ({ children }) => {
         getUserCampaigns,
         donate,
         withdraw,
+        withdrawCampaignMoney,
         getDonations,
       }}
     >

@@ -10,7 +10,7 @@ import { checkIfImage } from "../utils";
 const CreateCampaign = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const { createCampaign } = useStateContext();
+  const { createCampaign, address } = useStateContext();
   const [form, setForm] = useState({
     name: "",
     title: "",
@@ -29,6 +29,11 @@ const CreateCampaign = () => {
   const handleSubmit = async (e) => {
     try {
       e.preventDefault();
+
+      if (!address || address == "") {
+        alert("Please connect to Metamask to create a campaign");
+        return;
+      }
 
       if (
         !Number.parseFloat(form.target) ||

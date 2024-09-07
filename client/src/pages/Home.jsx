@@ -5,7 +5,7 @@ import { useStateContext } from "../context";
 import { search } from "../assets";
 
 const Home = () => {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [campaigns, setCampaigns] = useState([]);
   const [searchedCampaigns, setSearchedCampaigns] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -13,11 +13,17 @@ const Home = () => {
   const { address, contract, getCampaigns } = useStateContext();
 
   const fetchCampaigns = async () => {
-    setIsLoading(true);
-    const data = await getCampaigns();
-    console.log(data);
-    setCampaigns(data);
-    setIsLoading(false);
+    try {
+      setIsLoading(true);
+      const data = await getCampaigns();
+      console.log(data);
+      setCampaigns(data);
+    } catch (error) {
+      console.log(error);
+      alert("Error fetching campaigns");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {

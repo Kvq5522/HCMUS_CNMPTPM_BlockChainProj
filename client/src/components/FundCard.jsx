@@ -13,6 +13,8 @@ const FundCard = ({
   amountCollected,
   image,
   handleClick,
+  hasEnded,
+  isSuccessful,
 }) => {
   const remainingDays = daysLeft(deadline);
 
@@ -40,12 +42,30 @@ const FundCard = ({
         </div>
 
         <div className="block">
-          <h3
-            className="font-epilogue font-semibold text-[16px] 
+          <div className="flex justify-between">
+            <h3
+              className="font-epilogue font-semibold text-[16px] 
           text-white text-left leading-[26px] truncate"
-          >
-            {title}
-          </h3>
+            >
+              {title}
+            </h3>
+
+            {hasEnded ? (
+              <p
+                className="font-epilogue font-semibold text-[16px] 
+          text-white text-left leading-[26px] truncate"
+              >
+                {isSuccessful ? "Success" : "Failed"}
+              </p>
+            ) : (
+              <p
+                className="font-epilogue font-semibold text-[16px] 
+          text-white text-left leading-[26px] truncate"
+              >
+                On going
+              </p>
+            )}
+          </div>
           <p className="mt-[5px] font-epilogue font-normal text-[#808191] text-left leading-[18px] truncate">
             {description}
           </p>

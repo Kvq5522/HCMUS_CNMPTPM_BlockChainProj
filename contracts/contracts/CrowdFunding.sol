@@ -102,10 +102,11 @@ contract CrowdFunding {
         return numberOfCampaigns - 1;
     }
 
-    function donateToCampaign(uint256 _id) public payable {
-        uint256 amount = msg.value;
+    receive() external payable {}
 
+    function donateToCampaign(uint256 _id) public payable {
         Campaign storage campaign = campaigns[_id];
+        uint256 amount = msg.value / campaign.tokenPrice;
 
         require(campaign.owner != address(0), "Campaign not found");
         require(
@@ -118,11 +119,26 @@ contract CrowdFunding {
             "Not enough tokens left"
         );
 
-        (bool sent, ) = payable(campaign.owner).call{
-            value: campaign.tokenPrice * amount
-        }("");
-        require(sent, "Fail to donate");
-        require(token.approve(campaign.owner, amount), "Can't send token");
+        // (bool sent, ) = payable(address(this)).call{value: msg.value}("");
+        // require(sent, "Fail to donate");
+
+        require(token.approve(address(this), amount), "Approve fail");
+        require(token.approve(campaign.owner, amount), "Approve fail 1");
+        require(
+            token.allowance(address(this), campaign.owner) >= amount,
+            string(
+                abi.encodePacked(
+                    "Allowance: ",
+                    Strings.toString(
+                        token.allowance(campaign.owner, address(this))
+                    ),
+                    " Campaign owner balance: ",
+                    Strings.toString(token.balanceOf(campaign.owner)),
+                    " Amount: ",
+                    Strings.toString(amount)
+                )
+            )
+        );
         require(
             token.transferFrom(campaign.owner, msg.sender, amount),
             "Token transfer failed"
@@ -144,7 +160,7 @@ contract CrowdFunding {
 
         if (!hasAddress) {
             campaign.contributors.push(msg.sender);
-            campaign.donations.push(campaign.tokenPrice* amount);
+            campaign.donations.push(campaign.tokenPrice * amount);
         } else {
             campaign.donations[contributorIndex] +=
                 (campaign.tokenPrice / 1e18) *
@@ -208,11 +224,9 @@ contract CrowdFunding {
             // (bool sent, ) = payable(campaign.contributors[i]).call{
             //     value: refundValue
             // }("");
-            (bool sent, ) = (
-                ((campaign.contributors[i]).call{value: refundValue}(""))
-            );
+            // require(sent, "Refund fail");
+            payable(campaign.contributors[i]).transfer(refundValue);
             campaign.amountCollected -= refundValue;
-            require(sent, "Refund failed");
 
             token.approve(
                 campaign.contributors[i],
@@ -220,7 +234,7 @@ contract CrowdFunding {
             );
             token.transferFrom(
                 campaign.contributors[i],
-                tokenAddress,
+                address(this),
                 campaign.donations[i] / (campaign.tokenPrice)
             );
         }
@@ -241,10 +255,8 @@ contract CrowdFunding {
         // (bool sent, ) = payable(campaign.owner).call{
         //     value: campaign.amountCollected
         // }("");
-        (bool sent, ) = campaign.owner.call{value: campaign.amountCollected}(
-            ""
-        );
-        require(sent, "Withdraw failed");
+        // require(sent, "Withdraw failed");
+        payable(campaign.owner).transfer(campaign.amountCollected);
         campaign.hasWithdrawed = true;
     }
 

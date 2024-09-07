@@ -17,6 +17,7 @@ const CampaignDetails = () => {
     address,
     getCampaignById,
     endCampaign,
+    withdrawCampaignMoney,
   } = useStateContext();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -25,8 +26,6 @@ const CampaignDetails = () => {
   const [donators, setDonators] = useState([]);
   const [isDonator, setIsDonator] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState(0);
-
-  console.log(state);
 
   const remainingDays = daysLeft(state.deadline);
 
@@ -52,11 +51,20 @@ const CampaignDetails = () => {
       }
 
       setMessage("Handling donation...");
-      await donate(state.pId, amount);
 
-      navigate("/");
-      setIsLoading(false);
+      await donate(
+        state.pId,
+        ethers.utils
+          .parseUnits(amount, 18)
+          .mul(ethers.utils.parseUnits(state.tokenPrice, 18))
+          .div(ethers.utils.parseUnits("1", 18))
+          .toString(),
+        ethers.utils.parseUnits(amount, 18)
+      );
+
+      window.location.reload();
     } catch (error) {
+      console.log(error);
       alert("Failed to handle donation. Please try again.");
     } finally {
       setIsLoading(false);
@@ -68,12 +76,14 @@ const CampaignDetails = () => {
       setIsLoading(true);
       setMessage("Ending campaign...");
 
-      if (state.hasWithdrawed || !state.hasEnded) {
+      if (state.hasWithdrawed || state.hasEnded) {
         alert("Campaign has already ended or withdrawn.");
         return;
       }
 
       const data = await endCampaign(state.pId);
+
+      console.log(data);
     } catch (error) {
       console.log(error);
       alert("Failed to end campaign. Please try again.");
@@ -82,7 +92,24 @@ const CampaignDetails = () => {
     }
   };
 
-  const handleWithdrawCampaign = async () => {};
+  const handleWithdrawCampaign = async () => {
+    try {
+      setIsLoading(true);
+      setMessage("Withdrawing campaign money...");
+
+      if (state.hasWithdrawed) {
+        alert("Campaign has already withdrawn.");
+        return;
+      }
+
+      await withdrawCampaignMoney(state.pId);
+    } catch (error) {
+      console.log(error);
+      alert("Failed to withdraw campaign money. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -241,7 +268,7 @@ const CampaignDetails = () => {
           </>
         )}
 
-        {state.owner != address && (
+        {state.owner != address && address && address != "" && (
           <div className="flex-1">
             <h4 className="font-epilogue font-semibold text-[18px] uppercase">
               Fund
@@ -271,7 +298,11 @@ const CampaignDetails = () => {
 
                 {Number.parseInt(amount) > 0 && (
                   <p className="text-white font-epilogue font-semibold my-2">
-                    You have to pay {amount * state.tokenPrice} ETH to fund
+                    You have to pay{" "}
+                    {(amount * state.tokenPrice)
+                      .toFixed(18)
+                      .replace(/\.?0+$/, "")}{" "}
+                    ETH to fund
                   </p>
                 )}
 
@@ -283,7 +314,7 @@ const CampaignDetails = () => {
                   disabled={
                     new Date(state.deadline) < new Date() ||
                     state.hasEnded ||
-                    state.tokensForSale - state.tokensSold > 0
+                    state.tokensForSale - state.tokensSold <= 0
                   }
                 />
               </div>

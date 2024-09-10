@@ -13,7 +13,7 @@ import { TOKEN_ABI } from "../constants/tokenAbi";
 
 const StateContext = createContext();
 
-const contractAddress = "0x9F92322Fd9023755317a2FcAd99BBb49355cfaCf";
+const contractAddress = "0x49F96B98d04e8F2530C4D667b3534c0401B141AC";
 const tokenAddress = "0x335E93300b7e8C0E8527E46F128B4a5D2c354245";
 
 export const StateContextProvider = ({ children }) => {
@@ -62,6 +62,8 @@ export const StateContextProvider = ({ children }) => {
   };
 
   const getCampaigns = async () => {
+    if (!contract) return [];
+
     const campaigns = await contract.call("getCampaigns");
 
     const parsedCampaings = campaigns.map((campaign, i) => ({
@@ -85,6 +87,7 @@ export const StateContextProvider = ({ children }) => {
       tokenPrice: ethers.utils.formatEther(campaign.tokenPrice.toString()),
       image: campaign.image,
       donators: campaign.contributors,
+      donations: campaign.donations,
       pId: i,
     }));
 
@@ -120,10 +123,8 @@ export const StateContextProvider = ({ children }) => {
     return data;
   };
 
-  const withdraw = async (pId, amount) => {
-    const data = await contract.call("withdrawDonation", [pId], {
-      value: ethers.utils.parseEther(amount),
-    });
+  const refund = async (pId) => {
+    const data = await contract.call("refundDonation", [pId]);
 
     return data;
   };
@@ -169,7 +170,7 @@ export const StateContextProvider = ({ children }) => {
         getCampaignById,
         getUserCampaigns,
         donate,
-        withdraw,
+        refund,
         withdrawCampaignMoney,
         getDonations,
       }}

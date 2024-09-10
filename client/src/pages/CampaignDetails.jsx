@@ -18,22 +18,26 @@ const CampaignDetails = () => {
     getCampaignById,
     endCampaign,
     withdrawCampaignMoney,
+    refund,
   } = useStateContext();
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("Loading campaign details...");
   const [amount, setAmount] = useState("");
   const [donators, setDonators] = useState([]);
-  const [isDonator, setIsDonator] = useState(false);
+  const [detail, setDetail] = useState(state);
+  const [mounted, setMounted] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState(0);
+  const [donatorIndex, setDonatorIndex] = useState(-1);
 
-  const remainingDays = daysLeft(state.deadline);
+  const remainingDays = daysLeft(detail.deadline);
 
   const fetchDonators = async () => {
-    const data = await getDonations(state.pId);
+    const data = await getDonations(detail.pId);
 
     setDonators(data);
-    setIsDonator(data.find((donator) => donator.donator === address));
+    const index = data.findIndex((item) => item.donator === address);
+    setDonatorIndex(index);
   };
 
   const handleDonate = async () => {
@@ -42,8 +46,8 @@ const CampaignDetails = () => {
 
       if (
         Number.parseInt(amount) >
-          Number.parseInt(state.tokensForSale) -
-            Number.parseInt(state.tokensSold) ||
+          Number.parseInt(detail.tokensForSale) -
+            Number.parseInt(detail.tokensSold) ||
         Number.parseInt(amount) < 0
       ) {
         alert("Invalid fund amount. Please enter a valid fund amount.");
@@ -52,13 +56,15 @@ const CampaignDetails = () => {
 
       setMessage("Handling donation...");
 
+      const formatAmount = ethers.utils
+        .parseUnits(amount, 18)
+        .mul(ethers.utils.parseUnits(detail.tokenPrice, 18))
+        .div(ethers.utils.parseUnits("1", 18))
+        .toString();
+
       await donate(
-        state.pId,
-        ethers.utils
-          .parseUnits(amount, 18)
-          .mul(ethers.utils.parseUnits(state.tokenPrice, 18))
-          .div(ethers.utils.parseUnits("1", 18))
-          .toString(),
+        detail.pId,
+        formatAmount,
         ethers.utils.parseUnits(amount, 18)
       );
 
@@ -71,19 +77,39 @@ const CampaignDetails = () => {
     }
   };
 
+  const handleRefund = async () => {
+    try {
+      setIsLoading(true);
+      setMessage("Handling refund...");
+
+      if (detail.hasEnded) {
+        alert("Campaign has ended yet.");
+        return;
+      }
+
+      await refund(detail.pId);
+
+      window.location.reload();
+    } catch (error) {
+      console.log(error);
+      alert("Failed to handle refund. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleEndCampaign = async () => {
     try {
       setIsLoading(true);
       setMessage("Ending campaign...");
 
-      if (state.hasWithdrawed || state.hasEnded) {
+      if (detail.hasWithdrawed || detail.hasEnded) {
         alert("Campaign has already ended or withdrawn.");
         return;
       }
 
-      const data = await endCampaign(state.pId);
-
-      console.log(data);
+      await endCampaign(detail.pId);
+      window.location.reload();
     } catch (error) {
       console.log(error);
       alert("Failed to end campaign. Please try again.");
@@ -97,12 +123,12 @@ const CampaignDetails = () => {
       setIsLoading(true);
       setMessage("Withdrawing campaign money...");
 
-      if (state.hasWithdrawed) {
+      if (detail.hasWithdrawed) {
         alert("Campaign has already withdrawn.");
         return;
       }
 
-      await withdrawCampaignMoney(state.pId);
+      await withdrawCampaignMoney(detail.pId);
     } catch (error) {
       console.log(error);
       alert("Failed to withdraw campaign money. Please try again.");
@@ -112,21 +138,26 @@ const CampaignDetails = () => {
   };
 
   useEffect(() => {
-    (async () => {
-      try {
-        setMessage("Loading campaign details...");
-        const data = await getCampaignById(state.pId);
-      } catch (error) {
-        console.log(error);
-        alert("Failed to load campaign details. Please try again.");
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }, []);
+    if (contract) {
+      (async () => {
+        try {
+          if (!contract) return;
 
-  useEffect(() => {
-    if (contract) fetchDonators();
+          setIsLoading(true);
+          setMessage("Loading campaign details...");
+
+          const data = await getCampaignById(detail.pId);
+          setDetail((detail) => ({ ...detail, ...data }));
+        } catch (error) {
+          console.log(error);
+          alert("Failed to load campaign details. Please try again.");
+        } finally {
+          setIsLoading(false);
+        }
+      })();
+
+      fetchDonators();
+    }
   }, [contract, address]);
 
   return (
@@ -136,7 +167,7 @@ const CampaignDetails = () => {
       <div className="w-full flex md:flex-row flex-col mt-10 gap-[30px]">
         <div className="flex-1 flex-col">
           <img
-            src={state.image}
+            src={detail.image}
             alt="campaign"
             className="w-full h-[410px] object-cover rounded-xl"
           />
@@ -145,8 +176,8 @@ const CampaignDetails = () => {
               className="absolute h-full bg-[#4acd8d]"
               style={{
                 width: `${calculateBarPercentage(
-                  state.target,
-                  state.amountCollected
+                  detail.target,
+                  detail.amountCollected
                 )}%`,
                 maxWidth: "100%",
               }}
@@ -157,11 +188,11 @@ const CampaignDetails = () => {
         <div className="flex md:w-[150px] w-full flex-wrap justify-between gap-[30px]">
           <CountBox
             title="Days Left"
-            value={state.hasEnded ? 0 : remainingDays}
+            value={detail.hasEnded ? 0 : remainingDays}
           />
           <CountBox
-            title={`Raised of ${state.target}`}
-            value={state.amountCollected}
+            title={`Raised of ${detail.target}`}
+            value={detail.amountCollected}
           />
           <CountBox title="Total Backers" value={donators.length} />
         </div>
@@ -184,7 +215,7 @@ const CampaignDetails = () => {
               </div>
               <div>
                 <h4 className="font-epilogue font-semibold text-[14px]  break-all">
-                  {state.owner}
+                  {detail.owner}
                 </h4>
               </div>
             </div>
@@ -197,7 +228,7 @@ const CampaignDetails = () => {
 
             <div className="mt-[20px]">
               <p className="font-epilogue font-normal text-[16px] text-[#808191] leading-[26px] text-justify">
-                {state.hasEnded ? "Ended" : "Active"}
+                {detail.hasEnded ? "Ended" : "Active"}
               </p>
             </div>
           </div>
@@ -209,7 +240,7 @@ const CampaignDetails = () => {
 
             <div className="mt-[20px]">
               <p className="font-epilogue font-normal text-[16px] text-[#808191] leading-[26px] text-justify">
-                {state.category}
+                {detail.category}
               </p>
             </div>
           </div>
@@ -221,7 +252,7 @@ const CampaignDetails = () => {
 
             <div className="mt-[20px]">
               <p className="font-epilogue font-normal text-[16px] text-[#808191] leading-[26px] text-justify">
-                {state.description}
+                {detail.description}
               </p>
             </div>
           </div>
@@ -255,37 +286,36 @@ const CampaignDetails = () => {
           </div>
         </div>
 
-        {address == state.owner && (
+        {address == detail.owner && (
           <>
             <button
               onClick={
-                state.hasEnded ? handleWithdrawCampaign : handleEndCampaign
+                detail.hasEnded ? handleWithdrawCampaign : handleEndCampaign
               }
               className="bg-[#8c6dfd] text-white h-[50px] mt-10 p-2 rounded-[10px]  font-epilogue font-semibold text-[18px] leading-[30px] cursor-pointer"
             >
-              {state.hasEnded ? "Withdraw money" : "End Campaign"}
+              {detail.hasEnded ? "Withdraw money" : "End Campaign"}
             </button>
           </>
         )}
 
-        {state.owner != address && address && address != "" && (
+        {detail.owner != address && address && address != "" && (
           <div className="flex-1">
             <h4 className="font-epilogue font-semibold text-[18px] uppercase">
               Fund
             </h4>
-
-            <div className="mt-[20px] flex flex-col p-4 bg-[#1c1c24] rounded-[10px]">
+            <div className="mt-[20px] mb-4 flex flex-col p-4 bg-[#1c1c24] rounded-[10px]">
               <p className="font-epilogue fount-medium text-[20px] leading-[30px] text-center text-[#808191]">
                 Fund the campaign
               </p>
 
               <div className="mt-[1px]">
                 <p className="text-white font-epilogue font-semibold my-2">
-                  Available tokens: {state.tokensForSale - state.tokensSold}
+                  Available tokens: {detail.tokensForSale - detail.tokensSold}
                 </p>
 
                 <p className="text-white font-epilogue font-semibold my-2">
-                  Token price: {state.tokenPrice}
+                  Token price: {detail.tokenPrice}
                 </p>
 
                 <input
@@ -299,7 +329,7 @@ const CampaignDetails = () => {
                 {Number.parseInt(amount) > 0 && (
                   <p className="text-white font-epilogue font-semibold my-2">
                     You have to pay{" "}
-                    {(amount * state.tokenPrice)
+                    {(amount * detail.tokenPrice)
                       .toFixed(18)
                       .replace(/\.?0+$/, "")}{" "}
                     ETH to fund
@@ -312,13 +342,47 @@ const CampaignDetails = () => {
                   styles="w-full bg-[#8c6dfd] mt-2"
                   handleClick={handleDonate}
                   disabled={
-                    new Date(state.deadline) < new Date() ||
-                    state.hasEnded ||
-                    state.tokensForSale - state.tokensSold <= 0
+                    new Date(detail.deadline) < new Date() ||
+                    detail.hasEnded ||
+                    detail.tokensForSale - detail.tokensSold <= 0
                   }
                 />
               </div>
             </div>
+            {donatorIndex > -1 && (
+              <>
+                <h4 className="font-epilogue font-semibold text-[18px] uppercase">
+                  Refund
+                </h4>
+
+                <div className="mt-[20px] flex flex-col p-4 bg-[#1c1c24] rounded-[10px]">
+                  <p className="font-epilogue fount-medium text-[20px] leading-[30px] text-center text-[#808191]">
+                    You've owned{" "}
+                    {Math.floor(
+                      donators[donatorIndex]?.donation /
+                        Number.parseFloat(detail.tokenPrice)
+                    )}{" "}
+                    tokens
+                    <br></br>
+                    Do you wish to refund?
+                  </p>
+
+                  <div className="mt-[1px]">
+                    <CustomButton
+                      btnType="button"
+                      title="Refund now"
+                      styles="w-full bg-[#8c6dfd] mt-2"
+                      handleClick={handleRefund}
+                      disabled={
+                        new Date(detail.deadline) < new Date() ||
+                        detail.hasEnded ||
+                        detail.tokensForSale - detail.tokensSold <= 0
+                      }
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

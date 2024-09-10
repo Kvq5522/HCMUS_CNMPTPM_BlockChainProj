@@ -119,11 +119,9 @@ contract CrowdFunding {
             "Not enough tokens left"
         );
 
-        // (bool sent, ) = payable(address(this)).call{value: msg.value}("");
-        // require(sent, "Fail to donate");
-
-        require(token.approve(address(this), amount), "Approve fail");
-        require(token.approve(campaign.owner, amount), "Approve fail 1");
+        require(token.approve(msg.sender, amount), "Not enough tokens");
+        require(token.approve(campaign.owner, amount), "Not enough tokens");
+        require(token.approve(address(this), amount), "Not enough tokens");
         require(
             token.allowance(address(this), campaign.owner) >= amount,
             string(
@@ -163,7 +161,8 @@ contract CrowdFunding {
             campaign.donations.push(campaign.tokenPrice * amount);
         } else {
             campaign.donations[contributorIndex] +=
-                (campaign.tokenPrice / 1e18) *
+                // (campaign.tokenPrice / 1e18) *
+                campaign.tokenPrice *
                 amount;
         }
     }
@@ -221,10 +220,6 @@ contract CrowdFunding {
                         ? (campaign.donations[i] * 80) / 100
                         : (campaign.donations[i] * 70) / 100;
 
-            // (bool sent, ) = payable(campaign.contributors[i]).call{
-            //     value: refundValue
-            // }("");
-            // require(sent, "Refund fail");
             payable(campaign.contributors[i]).transfer(refundValue);
             campaign.amountCollected -= refundValue;
 
@@ -252,18 +247,14 @@ contract CrowdFunding {
 
         require(!campaign.hasWithdrawed, "Has withdrawed money already");
 
-        // (bool sent, ) = payable(campaign.owner).call{
-        //     value: campaign.amountCollected
-        // }("");
-        // require(sent, "Withdraw failed");
         payable(campaign.owner).transfer(campaign.amountCollected);
         campaign.hasWithdrawed = true;
     }
 
-    function withdrawDonation(uint256 _id) public payable {
+    function refundDonation(uint256 _id) public payable {
         Campaign storage campaign = campaigns[_id];
 
-        require(campaign.isWithdrawable, "Campaign is not withdrawable");
+        require(!campaign.hasEnded, "Campaign has ended, can't refund");
 
         bool hasAddress = false;
         uint256 contributorIndex = 0;
@@ -277,32 +268,32 @@ contract CrowdFunding {
         }
 
         require(hasAddress, "Contributor address is invalid");
+        uint256 refundValue = campaign.donations[contributorIndex];
+
+        payable(msg.sender).transfer(refundValue);
+
+        campaign.amountCollected -= refundValue;
+        campaign.tokensSold -= ((refundValue * 1e18) / campaign.tokenPrice);
+        campaign.withdrawers.push(msg.sender);
 
         require(
-            campaign.donations[contributorIndex] >= msg.value,
-            "Donation amount is invalid"
+            token.transferFrom(
+                msg.sender,
+                campaign.owner,
+                campaign.donations[contributorIndex]
+            ),
+            "Fail to transfer from owner to contributor"
         );
 
-        (bool sent, ) = payable(msg.sender).call{value: msg.value}("");
-
-        if (sent) {
-            campaign.amountCollected -= msg.value;
-            campaign.withdrawers.push(msg.sender);
-
-            if (msg.value == campaign.donations[contributorIndex]) {
-                for (
-                    uint i = contributorIndex;
-                    i < campaign.donations.length - 1;
-                    i++
-                ) {
-                    campaign.donations[i] = campaign.donations[i + 1];
-                    campaign.contributors[i] = campaign.contributors[i + 1];
-                }
-                campaign.donations.pop();
-                campaign.contributors.pop();
-            } else {
-                campaign.donations[contributorIndex] -= msg.value;
-            }
+        for (
+            uint i = contributorIndex;
+            i < campaign.donations.length - 1;
+            i++
+        ) {
+            campaign.donations[i] = campaign.donations[i + 1];
+            campaign.contributors[i] = campaign.contributors[i + 1];
         }
+        campaign.donations.pop();
+        campaign.contributors.pop();
     }
 }

@@ -95,8 +95,32 @@ export const StateContextProvider = ({ children }) => {
   };
 
   const getCampaignById = async (pId) => {
-    const campaigns = await getCampaigns();
-    return campaigns[Number.parseInt(pId)];
+    const campaign = await contract.call("getCampaignById", [pId]);
+
+    return {
+      owner: campaign.owner,
+      title: campaign.title,
+      description: campaign.description,
+      target: ethers.utils.formatEther(campaign.target.toString()),
+      category: campaign.category,
+      deadline: campaign.deadline.toNumber(),
+      amountCollected: ethers.utils.formatEther(
+        campaign.amountCollected.toString()
+      ),
+      hasWithdrawed: campaign.hasWithdrawed,
+      hasEnded: campaign.hasEnded,
+      isWithdrawable: campaign.isWithdrawable,
+      isSuccessful: campaign.isSuccessful,
+      tokensSold: ethers.utils.formatEther(campaign.tokensSold.toString()),
+      tokensForSale: ethers.utils.formatEther(
+        campaign.tokensForSale.toString()
+      ),
+      tokenPrice: ethers.utils.formatEther(campaign.tokenPrice.toString()),
+      image: campaign.image,
+      donators: campaign.contributors,
+      donations: campaign.donations,
+      pId: pId,
+    };
   };
 
   const getUserCampaigns = async () => {
